@@ -25,13 +25,13 @@
           <v-icon
             size="small"
             class="me-2"
-            @click="editItem(item.raw)"
+            @click="editItem(item)"
           >
             mdi-pencil
           </v-icon>
           <v-icon
             size="small"
-            @click="deleteItem(item.raw)"
+            @click="deleteItem(item)"
           >
             mdi-delete
           </v-icon>
@@ -168,8 +168,12 @@
                   label="Company Logo"
                   accept="image/*"
                   prepend-icon="mdi-camera"
-                  @change="handleLogoUpload"
+                  @update:model-value="handleLogoUpload"
+                  :show-size="true"
                 ></v-file-input>
+                <div v-if="editedItem.logoFileName" class="text-caption text-grey">
+                  Current file: {{ editedItem.logoFileName }}
+                </div>
               </v-col>
               <v-col cols="12" v-if="editedItem.logo">
                 <v-img
@@ -236,8 +240,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { collection, getDocs, doc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../services/firebase';
+import { db } from '../services/firebase';
 
 interface Company {
   id: string;
@@ -253,6 +256,7 @@ interface Company {
   branchName: string;
   accountType: string;
   logo?: string;
+  logoFileName?: string;
 }
 
 const companies = ref<Company[]>([]);
@@ -283,24 +287,42 @@ const defaultItem: Omit<Company, 'id'> = {
   ifscCode: '',
   branchName: '',
   accountType: 'Current',
-  logo: ''
+  logo: '',
+  logoFileName: ''
 };
 
 const editedItem = ref({ ...defaultItem });
 
 const logoFile = ref<File | null>(null);
 
-const handleLogoUpload = async (file: File | null) => {
-  if (!file) return;
-  
-  try {
-    const fileRef = storageRef(storage, `company-logos/${file.name}`);
-    await uploadBytes(fileRef, file);
-    const downloadURL = await getDownloadURL(fileRef);
-    editedItem.value.logo = downloadURL;
-  } catch (error) {
-    console.error('Error uploading logo:', error);
+const handleLogoUpload = (file: File | null) => {
+  // Clear the previous logo if no file is selected
+  if (!file) {
+    editedItem.value = {
+      ...editedItem.value,
+      logo: '',
+      logoFileName: ''
+    };
+    return;
   }
+
+  // Read the file as Data URL
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === 'string') {
+      // Create a new object to trigger reactivity
+      editedItem.value = {
+        ...editedItem.value,
+        logo: reader.result,
+        logoFileName: file.name
+      };
+    }
+  };
+  reader.onerror = (error) => {
+    console.error('Error reading file:', error);
+    alert('Failed to read the image file. Please try again.');
+  };
+  reader.readAsDataURL(file);
 };
 
 const fetchCompanies = async () => {
@@ -309,10 +331,13 @@ const fetchCompanies = async () => {
     const querySnapshot = await getDocs(collection(db, 'Companies'));
     companies.value = querySnapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data()
-    } as Company));
+      ...doc.data(),
+      logo: doc.data().logo || '', // Ensure logo is always defined
+      logoFileName: doc.data().logoFileName || '' // Ensure logoFileName is always defined
+    })) as Company[];
   } catch (error) {
     console.error('Error fetching companies:', error);
+    alert('Failed to load companies. Please refresh the page.');
   } finally {
     loading.value = false;
   }
@@ -337,25 +362,20 @@ const closeDialog = () => {
 
 const save = async () => {
   try {
-    if (logoFile.value) {
-      await handleLogoUpload(logoFile.value);
-    }
-
+    const companyData = { ...editedItem.value };
+    
     if (editedId.value) {
       // Update existing company
-      await updateDoc(doc(db, 'Companies', editedId.value), {
-        ...editedItem.value
-      });
+      await updateDoc(doc(db, 'Companies', editedId.value), companyData);
     } else {
       // Add new company
-      await addDoc(collection(db, 'Companies'), {
-        ...editedItem.value
-      });
+      await addDoc(collection(db, 'Companies'), companyData);
     }
     closeDialog();
     await fetchCompanies();
   } catch (error) {
     console.error('Error saving company:', error);
+    alert('Failed to save company. Please try again.');
   }
 };
 
@@ -373,4 +393,4 @@ const deleteItemConfirm = async () => {
 };
 
 onMounted(fetchCompanies);
-</script> 
+</script>

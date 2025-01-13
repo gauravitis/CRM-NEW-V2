@@ -1,4 +1,4 @@
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, AlignmentType, HeightRule, VerticalAlign, TabStopType, TabStopPosition, TabStopLeader, WidthType, TableAnchorType, RelativeHorizontalPosition, RelativeVerticalPosition } from 'docx';
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, BorderStyle, AlignmentType, HeightRule, VerticalAlign, TabStopType, TabStopPosition, TabStopLeader, WidthType, TableAnchorType, RelativeHorizontalPosition, RelativeVerticalPosition, ImageRun, HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, HorizontalPositionAlign, VerticalPositionAlign } from 'docx';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import { db } from '../services/firebase';
@@ -16,6 +16,7 @@ interface Company {
   bankName: string;
   accountNumber: string;
   ifscCode: string;
+  logo?: string;  // Base64 string of the company seal
 }
 
 interface Client {
@@ -85,6 +86,34 @@ const formatDate = (date: string | Date) => {
 // Helper function to format currency
 const formatCurrency = (amount: number): string => {
   return `₹${amount.toFixed(2)}`;
+};
+
+// Helper function to calculate totals
+const calculateTotals = (items: Item[]): { subTotal: number, gstTotal: number, grandTotal: number } => {
+  let subTotal = 0;
+  let gstTotal = 0;
+
+  items.forEach(item => {
+    const quantity = Number(item.quantity) || 0;
+    const unitRate = Number(item.unitRate) || 0;
+    const discount = Number(item.discount) || 0;
+    const gstPercent = Number(item.gst) || 0;
+
+    const discountedPrice = unitRate * (1 - discount / 100);
+    const expandedPrice = discountedPrice * quantity;
+    const itemGstValue = expandedPrice * (gstPercent / 100);
+
+    subTotal += expandedPrice;
+    gstTotal += itemGstValue;
+  });
+
+  const grandTotal = subTotal + gstTotal;
+
+  return {
+    subTotal: Number(subTotal.toFixed(2)),
+    gstTotal: Number(gstTotal.toFixed(2)),
+    grandTotal: Number(grandTotal.toFixed(2))
+  };
 };
 
 // Generate Word document
@@ -225,7 +254,7 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
                 })
               ],
               shading: {
-                type: 'fill',
+                type: 'fill' as const,
                 color: '102850',
                 fill: '102850'
               }
@@ -294,14 +323,7 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
                       font: 'Calibri'
                     }),
                     new TextRun({
-                      text: 'Dr.',
-                      size: 18,
-                      bold: true,
-                      underline: {},
-                      font: 'Calibri'
-                    }),
-                    new TextRun({
-                      text: ' ' + (quotationData.client.contactPerson || quotationData.client.name), 
+                      text: quotationData.client.contactPerson || quotationData.client.name,
                       size: 18,
                       bold: true,
                       underline: {},
@@ -325,7 +347,7 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
           ]
         })
       ],
-      width: { size: 100, type: 'pct' },
+      width: { size: 100, type: WidthType.PERCENTAGE },
       margins: { top: 30, bottom: 30 }
     });
 
@@ -352,33 +374,6 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
     });
 
     // Calculate totals before generating document
-    const calculateTotals = (items: Item[]): { subTotal: number, gstTotal: number, grandTotal: number } => {
-      let subTotal = 0;
-      let gstTotal = 0;
-
-      items.forEach(item => {
-        const quantity = Number(item.quantity) || 0;
-        const unitRate = Number(item.unitRate) || 0;
-        const discount = Number(item.discount) || 0;
-        const gstPercent = Number(item.gst) || 0;
-
-        const discountedPrice = unitRate * (1 - discount / 100);
-        const expandedPrice = discountedPrice * quantity;
-        const itemGstValue = expandedPrice * (gstPercent / 100);
-
-        subTotal += expandedPrice;
-        gstTotal += itemGstValue;
-      });
-
-      const grandTotal = subTotal + gstTotal;
-
-      return {
-        subTotal: Number(subTotal.toFixed(2)),
-        gstTotal: Number(gstTotal.toFixed(2)),
-        grandTotal: Number(grandTotal.toFixed(2))
-      };
-    };
-
     const totals = calculateTotals(quotationData.items);
 
     // Update quotationData with calculated totals
@@ -639,30 +634,75 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
     // Add company name and authorized signatory
     const forCompanyText = new Paragraph({
       children: [
-        new TextRun({ text: 'For CHEMBIO LIFESCIENCES', size: 18, font: 'Calibri', bold: true })
+        new TextRun({ 
+          text: `For ${quotationData.company.name.toUpperCase()}`,
+          size: 24,
+          font: 'Calibri',
+          bold: true
+        })
       ],
-      spacing: { before: 400, after: 400 },
+      spacing: { before: 400, after: 100 },
       alignment: AlignmentType.RIGHT
     });
 
+    // Add company seal if available
+    let companySealImage;
+    if (quotationData.company.logo) {
+      try {
+        // Create a temporary image element to get image dimensions
+        const img = new Image();
+        img.src = quotationData.company.logo;
+        
+        // Convert base64 to binary array
+        const base64 = quotationData.company.logo.split(',')[1];
+        const binary = atob(base64);
+        const array = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          array[i] = binary.charCodeAt(i);
+        }
+
+        // Create simple centered image
+        companySealImage = new Paragraph({
+          children: [
+            new ImageRun({
+              data: array,
+              transformation: {
+                width: 100,
+                height: 100
+              }
+            })
+          ],
+          alignment: AlignmentType.RIGHT
+        });
+      } catch (error) {
+        console.error('Error processing company logo:', error);
+        // Log detailed error information
+        console.error('Logo data:', quotationData.company.logo?.substring(0, 100) + '...');
+      }
+    }
+
     const authorizedSignatoryText = new Paragraph({
       children: [
-        new TextRun({ text: 'Authorized Signatory', size: 18, font: 'Calibri' })
+        new TextRun({ 
+          text: 'Authorized Signatory',
+          size: 24,
+          font: 'Calibri'
+        })
       ],
       spacing: { before: 100, after: 100 },
       alignment: AlignmentType.RIGHT
     });
 
-    // Create document with original structure
+    // Create document with sections
     const doc = new Document({
       sections: [{
         properties: {
           page: {
             margin: {
-              top: 259,    // 0.18"
-              bottom: 994, // 0.69"
-              left: 288,   // 0.2"
-              right: 288   // 0.2"
+              top: 1440,    // 1 inch
+              right: 1440,  // 1 inch
+              bottom: 1440, // 1 inch
+              left: 1440    // 1 inch
             }
           }
         },
@@ -688,6 +728,7 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
           employeeMobile,
           employeeEmail,
           forCompanyText,
+          ...(companySealImage ? [companySealImage] : []),
           authorizedSignatoryText
         ]
       }]
@@ -713,7 +754,7 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
       commonTerms: quotationData.commonTerms,
       notes: quotationData.notes,
       createdBy: quotationData.createdBy,
-      createdAt: new Date()
+      createdAt: new Date().toISOString()
     };
 
     try {
@@ -731,7 +772,9 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
 // Generate PDF document data
 export const generatePDFDocument = async (quotationData: QuotationData): Promise<void> => {
   try {
-    // Create document data structure
+    // Calculate totals before saving to Firestore
+    const totals = calculateTotals(quotationData.items);
+
     const documentData = {
       type: 'pdf',
       quotationNumber: quotationData.quotationNumber,
@@ -740,9 +783,9 @@ export const generatePDFDocument = async (quotationData: QuotationData): Promise
       company: quotationData.company,
       client: quotationData.client,
       items: quotationData.items,
-      subTotal: quotationData.subTotal,
-      gstTotal: quotationData.gstTotal,
-      grandTotal: quotationData.grandTotal,
+      subTotal: totals.subTotal,
+      gstTotal: totals.gstTotal,
+      grandTotal: totals.grandTotal,
       paymentTerms: quotationData.paymentTerms,
       commonTerms: quotationData.commonTerms,
       notes: quotationData.notes,

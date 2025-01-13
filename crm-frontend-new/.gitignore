@@ -31,3 +31,5 @@ coverage
 
 # Firebase config
 src/services/firebase.ts
+
+.vercel
