@@ -13,7 +13,9 @@ interface Company {
   email: string;
   gst: string;
   pan: string;
-  bankDetails: string;
+  bankName: string;
+  accountNumber: string;
+  ifscCode: string;
 }
 
 interface Client {
@@ -40,7 +42,7 @@ interface Item {
   hsnCode: string;
   expandedPrice: number;
   leadTime: string;
-  make: string;
+  brand: string;
 }
 
 interface CreatedBy {
@@ -125,25 +127,25 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
       fill: '102850'
     };
 
-    // Company Header with blue background
+    // Company Header with blue background using selected company details
     const headerSection = new Paragraph({
       children: [
         new TextRun({
-          text: 'CHEMBIO LIFESCIENCES',
+          text: quotationData.company.name.toUpperCase(),
           ...styles.header
         }),
         new TextRun({
-          text: '\nL-10, Himalaya Legend, Nyay Khand-1, Indirapuram, Ghaziabad - 201014',
+          text: `\n${quotationData.company.address}`,
           ...styles.subHeader,
           break: 1
         }),
         new TextRun({
-          text: '\nEmail:- sales.chembio@gmail.com 0120-4909400',
+          text: `\nEmail: ${quotationData.company.email} | Phone: ${quotationData.company.phone}`,
           ...styles.subHeader,
           break: 1
         }),
         new TextRun({
-          text: '\nPAN NO.: AALFC0922C | GST NO.: 09AALFC0922C1ZU',
+          text: `\nPAN NO.: ${quotationData.company.pan} | GST NO.: ${quotationData.company.gst}`,
           ...styles.subHeader,
           break: 1
         })
@@ -434,14 +436,14 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'GST Value', size: 18, font: 'Calibri', bold: true })] })], width: { size: 1000, type: WidthType.DXA }, shading: { fill: '102850', color: 'FFFFFF' }, verticalAlign: VerticalAlign.CENTER }),
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Total', size: 18, font: 'Calibri', bold: true })] })], width: { size: 1000, type: WidthType.DXA }, shading: { fill: '102850', color: 'FFFFFF' }, verticalAlign: VerticalAlign.CENTER }),
             new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Lead Time', size: 18, font: 'Calibri', bold: true })] })], width: { size: 800, type: WidthType.DXA }, shading: { fill: '102850', color: 'FFFFFF' }, verticalAlign: VerticalAlign.CENTER }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Make', size: 18, font: 'Calibri', bold: true })] })], width: { size: 1000, type: WidthType.DXA }, shading: { fill: '102850', color: 'FFFFFF' }, verticalAlign: VerticalAlign.CENTER })
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Brand', size: 18, font: 'Calibri', bold: true })] })], width: { size: 1000, type: WidthType.DXA }, shading: { fill: '102850', color: 'FFFFFF' }, verticalAlign: VerticalAlign.CENTER })
           ],
           tableHeader: true
         }),
         ...processedItems.map((item, index) => {
           return new TableRow({
             children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${index + 1}`, size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: (index + 1).toString(), size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.catalogueId || '', size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.description || '', size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.packSize || '', size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
@@ -451,11 +453,11 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.discount ? `${item.discount}%` : '0%', size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `₹${item.discountedPrice.toFixed(2)}`, size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `₹${item.expandedPrice.toFixed(2)}`, size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.gst ? `${item.gst}%` : '0%', size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${item.gst}%`, size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `₹${item.gstValue.toFixed(2)}`, size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `₹${item.total.toFixed(2)}`, size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.leadTime || '', size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.make || '', size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER })
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.brand || '', size: 18, font: 'Calibri' })] })], verticalAlign: VerticalAlign.CENTER })
             ]
           });
         })
@@ -562,18 +564,18 @@ export const generateWordDocument = async (quotationData: QuotationData): Promis
     const bankDetails = new Paragraph({
       children: [
         new TextRun({ 
-          text: 'HDFC BANK LTD. Account No:- ',
+          text: `${quotationData.company.bankName} Account No:- `,
           size: 18,
           font: 'Calibri'
         }),
         new TextRun({ 
-          text: '50200017514930',
+          text: quotationData.company.accountNumber,
           size: 18,
           font: 'Calibri',
           underline: {}
         }),
         new TextRun({ 
-          text: ' - NEFT/RTGS IFCS : HDFC0000590 Branch code:0590 ; Micro code : 110240081 ;Account type: Current account',
+          text: ` - NEFT/RTGS IFCS : ${quotationData.company.ifscCode}`,
           size: 18,
           font: 'Calibri'
         })

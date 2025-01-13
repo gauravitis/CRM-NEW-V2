@@ -152,7 +152,7 @@
                 v-model.number="item.quantity"
                 type="number"
                 label="Quantity*"
-                :rules="[
+                :rules="[/* eslint-disable-next-line */
                   (v: number | null) => !!v || 'Quantity is required',
                   (v: number | null) => (v && v > 0) || 'Quantity must be greater than 0'
                 ]"
@@ -413,7 +413,7 @@ const quotation = ref<Quotation>({
 });
 
 // Computed properties
-const selectedClient = computed(() => 
+const selectedClient = computed(() =>
   store.clients.find(client => client.id === quotation.value.clientId)
 );
 
@@ -518,7 +518,7 @@ const generateQuotationNumber = async () => {
     
     // Financial year is from April to March
     const financialYear = currentMonth >= 3 
-      ? `${currentYear}-${(currentYear + 1).toString().slice(-2)}`
+      ? `${currentYear}-${(currentYear + 1).toString().slice(-2)}` 
       : `${currentYear - 1}-${currentYear.toString().slice(-2)}`;
 
     // Query the latest quotation number for the current financial year
@@ -563,6 +563,7 @@ const saveQuotation = async () => {
       createdAt: new Date(),
       date: new Date().toISOString(),
       validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      status: 'pending'
     });
     console.log('Quotation saved with ID:', docRef.id);
     await store.fetchQuotations(); // Refresh quotations list
@@ -582,6 +583,7 @@ const downloadQuotation = async () => {
   try {
     loading.value = true;
     const selectedCompany = companies.value.find(c => c.id === quotation.value.company);
+    console.log('Selected Company:', selectedCompany);
     const client = store.clients.find(c => c.id === quotation.value.clientId);
     const employee = store.employees.find(e => e.id === quotation.value.employeeId);
 
@@ -595,7 +597,11 @@ const downloadQuotation = async () => {
         address: selectedCompany.address,
         email: selectedCompany.email,
         phone: selectedCompany.phone,
-        gst: selectedCompany.gstNumber
+        gst: selectedCompany.gstNumber,
+        pan: selectedCompany.panNumber || '',
+        bankName: selectedCompany.bankName || '',
+        accountNumber: selectedCompany.accountNumber || '',
+        ifscCode: selectedCompany.ifscCode || ''
       },
       quotationNumber: quotationNumber.value,
       date: new Date().toLocaleDateString(),
@@ -614,13 +620,16 @@ const downloadQuotation = async () => {
           catalogueId: catalogueItem?.catalogueId || '',
           description: catalogueItem?.description || '',
           packSize: catalogueItem?.packSize || '',
+          hsnCode: catalogueItem?.hsnCode || '',
+          brand: catalogueItem?.brand || '',
           quantity: item.quantity,
           unitRate: item.unitRate,
-          discountPercentage: item.discountPercentage,
-          discountedRate: item.discountedRate,
-          gstPercentage: item.gstPercentage,
-          totalGST: item.totalGst,
-          total: item.totalPrice
+          discount: item.discountPercentage,
+          discountedPrice: item.discountedRate,
+          gst: item.gstPercentage,
+          gstValue: item.totalGst,
+          total: item.totalPrice,
+          expandedPrice: item.quantity * item.discountedRate
         };
       }),
       subtotal: subtotal.value,
@@ -680,4 +689,4 @@ onMounted(async () => {
   });
   loading.value = false;
 });
-</script> 
+</script>
